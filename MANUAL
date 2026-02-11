@@ -1,0 +1,72 @@
+HIVE MANUAL
+# 🐝 HIVE v1.8: Industrial Distributed AI Cluster
+> **"Built with the steel-like rigidity of BASIC. Evolved for Resilient AI Operations."**
+
+This document provides the full command set for deploying and managing the HIVE v1.8 infrastructure. HIVE is designed for high-availability AI inference in secure intranet environments.
+
+---
+
+SYSTEM ARCHITECTURE
+
+- **QUEEN (Primary Command):** Handles external API requests and worker load balancing.
+- **CELL (Backup Command & Log):** Records all telemetry. Automatically assumes command if Queen fails.
+- **DRONE (Worker):** Self-registering AI execution node.
+
+---
+
+DEPLOYMENT COMMANDS (Git & Setup)
+
+### [A] First-time Repository Setup
+```bash
+# Initialize and push to GitHub
+git init
+git add .
+git commit -m "Initial Release: HIVE v1.8 Commercial Grade"
+git branch -M main
+git remote add origin [YOUR_REPO_URL]
+git push -u origin main
+
+Environment Synchronization
+Run this on every new machine to install required components:
+python fabricator.py
+
+RUNTIME COMMAND SET (Execution)
+Run these commands in order to ensure stable cluster synchronization.
+
+Step 1: Start the Primary Controller (Queen)
+# Run on the Master Machine
+python queen.py
+
+Step 2: Start the Backup & Logger (Cell)
+# Run on the Storage/Secondary Machine
+python cell.py
+
+Step 3: Launch the Swarm (Drones)
+# Run on GPU-equipped Machines (Assign different ports if on same machine)
+python drone.py 8081
+python drone.py 8082
+
+INTEGRITY & FAILOVER TESTING
+[A] External API Bridge Test
+Verify if the HIVE is reachable from external Web/App servers:
+curl -X POST http://[QUEEN_IP]:8000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{"prompt": "HIVE Connectivity Test", "max_tokens": 50}'
+
+[B] Critical Failover Test (Resilience Check)
+Simulate a command center failure to verify the Cell node's takeover:
+
+Terminate queen.py (Ctrl+C).
+
+Monitor cell.py terminal for: "🚨 ALERT: Queen Offline. Cell assuming Command..."
+
+Verify that the External API now responds via http://[CELL_IP]:9000/v1/chat/completions.
+
+LICENSE & ATTRIBUTION
+License: Apache License 2.0 (Industrial Patent Protection included).
+
+Author: R2 (2026)
+
+Core Philosophy: Minimalist Rigidity, Maximum Reliability.
+
+============================================================ END OF MANUAL //
