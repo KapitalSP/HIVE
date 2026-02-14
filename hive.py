@@ -1,14 +1,183 @@
-import os, sys, subprocess, socket, json
+import sys
+import os
+import json
+import time
+import socket
+import subprocess
 
-# Copyright 2026 R2
+# Copyright 2026 KapitalSP
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
 
-# =============================================================================
-# 📡 NETWORK UTILITIES
-# =============================================================================
+# ==============================================================================
+# 📜 LICENSE & BLUEPRINTS (EMBEDDED ASSETS)
+# ==============================================================================
+
+# [LEGAL] All generated files will carry the KapitalSP signature.
+LICENSE_HEADER = """# Copyright 2026 KapitalSP
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# http://www.apache.org/licenses/LICENSE-2.0
+"""
+
+# [BLUEPRINT: QUEEN] - Central Command Node
+CODE_QUEEN = LICENSE_HEADER + r"""
+import socket
+import threading
+import json
+import os
+import time
+from datetime import datetime
+
+class HiveQueen:
+    def __init__(self, port=9999):
+        self.port = port
+        self.hq_path = "hive_hq"
+        self.registry_path = os.path.join(self.hq_path, "registry", "swarm.json")
+        self.log_path = os.path.join(self.hq_path, "logs")
+        
+        # 🏗️ SELF-INSTALLATION PROTOCOL
+        self.initialize_infrastructure()
+
+    def initialize_infrastructure(self):
+        print(f" [👑] INITIALIZING INFRASTRUCTURE (KapitalSP Engine)...")
+        dirs = [
+            self.hq_path,
+            os.path.join(self.hq_path, "registry"),
+            self.log_path,
+            os.path.join(self.hq_path, "plugins")
+        ]
+        for d in dirs:
+            if not os.path.exists(d):
+                os.makedirs(d)
+                print(f"     [+] Created Sector: {d}")
+        
+        if not os.path.exists(self.registry_path):
+            with open(self.registry_path, 'w') as f:
+                json.dump({"drones": [], "created_at": str(datetime.now())}, f)
+            print(f"     [+] Registry Initialized.")
+
+    def log(self, message):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry = f"[{timestamp}] {message}"
+        print(entry)
+        with open(os.path.join(self.log_path, "system.log"), "a") as f:
+            f.write(entry + "\n")
+
+    def handle_client(self, client_socket, addr):
+        try:
+            # Simple handshake
+            client_socket.send(b"HIVE_QUEEN_V1_READY")
+            data = client_socket.recv(1024).decode()
+            if data:
+                self.log(f"[Network] Signal received from {addr}: {data}")
+        except Exception as e:
+            self.log(f"[Error] Connection error: {e}")
+        finally:
+            client_socket.close()
+
+    def start(self):
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(('0.0.0.0', self.port))
+        server.listen(5)
+        self.log(f"[System] QUEEN ONLINE. LISTENING ON PORT {self.port}")
+        self.log(f"[System] HQ LOCATED AT: {os.path.abspath(self.hq_path)}")
+        
+        while True:
+            client, addr = server.accept()
+            threading.Thread(target=self.handle_client, args=(client, addr)).start()
+
+if __name__ == "__main__":
+    try:
+        print(" [👑] HIVE QUEEN (c) 2026 KapitalSP")
+        queen = HiveQueen(9999)
+        queen.start()
+    except KeyboardInterrupt:
+        print("\n [!] SYSTEM HALTED BY USER.")
+"""
+
+# [BLUEPRINT: DRONE] - Worker Node
+CODE_DRONE = LICENSE_HEADER + r"""
+import socket
+import time
+import json
+import os
+import sys
+
+class HiveDrone:
+    def __init__(self):
+        self.workspace = "drone_workspace"
+        self.config_file = "config.json"
+        
+        # 🏗️ SELF-INSTALLATION PROTOCOL
+        self.initialize_workspace()
+        self.config = self.load_config()
+
+    def initialize_workspace(self):
+        print(f" [🐝] DEPLOYING WORKSPACE (KapitalSP Engine)...")
+        dirs = [
+            self.workspace,
+            os.path.join(self.workspace, "temp"),
+            os.path.join(self.workspace, "logs"),
+            os.path.join(self.workspace, "cache")
+        ]
+        for d in dirs:
+            if not os.path.exists(d):
+                os.makedirs(d)
+                print(f"     [+] Deployed Sector: {d}")
+
+    def load_config(self):
+        if not os.path.exists(self.config_file):
+            print(" [❌] CRITICAL ERROR: 'config.json' MISSING.")
+            print("      Please run the FABRICATOR to generate configuration.")
+            sys.exit(1)
+        
+        with open(self.config_file, 'r') as f:
+            return json.load(f)
+
+    def connect_to_queen(self):
+        host = self.config['queen_ip']
+        port = self.config['queen_port']
+        drone_id = self.config['drone_id']
+        
+        print(f" [🐝] DRONE [{drone_id}] SEEKING QUEEN AT {host}:{port}...")
+        
+        while True:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(5)
+                s.connect((host, port))
+                
+                # Handshake
+                banner = s.recv(1024).decode()
+                if "HIVE_QUEEN" in banner:
+                    print(f" [✅] CONNECTION ESTABLISHED: {banner}")
+                    s.send(f"REPORTING_IN::{drone_id}".encode())
+                    s.close()
+                    break
+            except socket.error:
+                print(f" [⏳] Connection refused. Retrying in 3s...")
+                time.sleep(3)
+            except Exception as e:
+                print(f" [⚠️] Error: {e}")
+                time.sleep(3)
+                
+        print(" [🐝] ENTERING STANDBY MODE. AWAITING INSTRUCTIONS.")
+
+if __name__ == "__main__":
+    try:
+        print(" [🐝] HIVE DRONE (c) 2026 KapitalSP")
+        drone = HiveDrone()
+        drone.connect_to_queen()
+    except KeyboardInterrupt:
+        print("\n [!] DRONE DISENGAGED.")
+"""
+
+# ==============================================================================
+# 🛠️ UTILITIES
+# ==============================================================================
+
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -20,212 +189,101 @@ def get_local_ip():
         s.close()
     return ip
 
-def run_cmd(cmd):
-    # Ensure dependencies are installed silently
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install"] + cmd, 
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except: pass # Assume installed if fails or offline
+def clear_screen():
+    os.system("cls" if os.name == "nt" else "clear")
 
 # ==============================================================================
-# 🛠️ GLOBAL HEADERS (Apache 2.0 License Stamp)
+# 🚀 DEPLOYMENT LOGIC
 # ==============================================================================
-LICENSE_HEADER = """# Copyright 2026 R2
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# http://www.apache.org/licenses/LICENSE-2.0
-"""
 
-# ==============================================================================
-# 🚀 INTEGRITY CHECK & SETUP
-# ==============================================================================
-def setup():
-    local_ip = get_local_ip()
+def deploy_queen():
     print("\n" + "═"*60)
-    print(f" 🏭 HIVE FABRICATOR v1.8 // LOCAL IP: {local_ip}")
-    print(" 🛡️  COMMERCIAL GRADE AI INFRASTRUCTURE (APACHE 2.0)")
+    print(" 👑 INITIATING QUEEN PROTOCOL (MASTER NODE)")
     print("═"*60)
-
-    # 1. Component Synchronization
-    print("\n [1/4] Syncing components (FastAPI, uvicorn, httpx, psutil)...")
-    try:
-        run_cmd(["fastapi", "uvicorn", "httpx", "psutil"])
-        print(" [OK] All systems synchronized.")
-    except Exception as e:
-        print(f" [ERR] Critical Sync Failure: {e}"); return
-
-    # 2. Resilient Network Config
-    config_file = "hive_config.json"
-    if os.path.exists(config_file):
-        with open(config_file, "r") as f:
-            config = json.load(f)
-        print(f"\n [🔍] Config Found: Queen({config['queen_ip']}), Cell({config['cell_ip']})")
-        if input("  > Maintain these deployment parameters? (y/n): ").lower() != 'y':
-            os.remove(config_file)
-            return setup()
-    else:
-        q_ip = input(f"  > Primary Queen IP (Default {local_ip}): ") or local_ip
-        c_ip = input(f"  > Backup Cell IP    (Default {local_ip}): ") or local_ip
-        config = {"queen_ip": q_ip, "cell_ip": c_ip, "webhook_url": ""}
-        with open(config_file, "w") as f:
-            json.dump(config, f)
-
-    # 3. Role Deployment
-    print("\n [2/4] Deploying Node Role:")
-    print("  (1) Queen : Strategic Command & External API Gateway")
-    print("  (2) Drone : AI Execution (Self-Registering Worker)")
-    print("  (3) Cell  : Log Archivist & Backup Command (Failover)")
     
-    choice = input("\n Deployment ID (1-3): ").strip()
-
-    # 4. Neural Code Generation
-    print("\n [3/4] Generating Source Code with Failover DNA...")
+    target_file = "queen.py"
     
-    # --- Queen: Master & Gateway ---
-    if choice == "1":
-        with open("queen.py", "w", encoding="utf-8") as f:
-            f.write(LICENSE_HEADER + f"""
-import fastapi, httpx, os, time, threading, uvicorn
-from fastapi import Request
+    if os.path.exists(target_file):
+        print(f" [!] WARNING: '{target_file}' already exists.")
+        if input("     Overwrite? (y/n): ").lower() != 'y':
+            print(" [🚫] Aborted.")
+            return
 
-app = fastapi.FastAPI(title="HIVE Queen")
-CONFIG = {json.dumps(config)}
-WORKERS = [] 
-CURRENT_WORKER_IDX = 0 # Round-Robin Counter
-
-@app.get("/health")
-async def health(): return {{"status": "ALIVE", "role": "MASTER"}}
-
-@app.post("/register")
-async def register(req: Request):
-    data = await req.json()
-    # Check if worker already exists to prevent duplicates
-    if not any(d['id'] == data['id'] for d in WORKERS):
-        WORKERS.append(data)
-        print(f" [🌐] New Drone Connected: {{data['id']}}")
-    return {{"status": "ACCEPTED"}}
-
-@app.post("/v1/chat/completions")
-async def gateway(req: Request):
-    global CURRENT_WORKER_IDX
-    if not WORKERS: return {{"error": "No Drones available"}}
-    
-    # Round-Robin Load Balancing
-    target_drone = WORKERS[CURRENT_WORKER_IDX % len(WORKERS)]
-    CURRENT_WORKER_IDX += 1
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            # Forward the request to the selected Drone
-            res = await client.post(f"{{target_drone['url']}}/v1/chat/completions", json=await req.json(), timeout=60.0)
-            return res.json()
-        except Exception as e:
-            return {{"error": f"Drone connection failed: {{str(e)}}"}}
-
-def ui():
-    while True:
-        os.system("clear" if os.name != "nt" else "cls")
-        print(" ┌──────────────────────────────────────────────────┐")
-        print(f" │ 👑 HIVE MASTER CONSOLE // ECU v1.8                │")
-        print(f" │ External API: http://{{get_local_ip()}}:8000/v1      │")
-        print(" ├──────────────────────────────────────────────────┤")
-        # Thread-safe iteration using list() to avoid runtime errors
-        for w in list(WORKERS):
-            print(f" │ 🟢 {{w['id']:<15}} ONLINE  IP: {{w['url']}}      │")
-        if not WORKERS: print(" │ 🔴 WAITING FOR DRONES...                          │")
-        print(" └──────────────────────────────────────────────────┘")
-        time.sleep(2)
-
-if __name__ == "__main__":
-    threading.Thread(target=ui, daemon=True).start()
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="critical")
-""")
-
-    # --- Drone: Self-Registering Worker ---
-    elif choice == "2":
-        with open("drone.py", "w", encoding="utf-8") as f:
-            f.write(LICENSE_HEADER + f"""
-import fastapi, httpx, uvicorn, socket, asyncio
-
-app = fastapi.FastAPI()
-CONFIG = {json.dumps(config)}
-MY_IP = "{local_ip}"
-MY_ID = socket.gethostname()
-
-@app.on_event("startup")
-async def join_hive():
-    async with httpx.AsyncClient() as client:
-        # [FIX] Explicitly target Queen (8000) and Cell (9000) regardless of IP
-        targets = [(CONFIG['queen_ip'], 8000), (CONFIG['cell_ip'], 9000)]
+    with open(target_file, "w", encoding="utf-8") as f:
+        f.write(CODE_QUEEN)
         
-        for ip, port in targets:
-            try:
-                # Loop through specific ports to ensure both Queen and Cell are contacted
-                await client.post(f"http://{{ip}}:{{port}}/register", 
-                    json={{"id": MY_ID, "url": f"http://{{MY_IP}}:8081"}}, timeout=2.0)
-                print(f" [📡] Signal sent to Command Node at {{ip}}:{{port}}")
-            except Exception as e: 
-                print(f" [⚠️] Connection failed to {{ip}}:{{port}}")
+    print(f" [✅] FILE GENERATED: {target_file}")
+    print(f" [ℹ️] INSTRUCTION: Run 'python queen.py' to initialize HQ.")
 
-@app.post("/v1/chat/completions")
-async def infer(): 
-    # Placeholder for Inference Engine connection
-    return {{"msg": "HIVE_DRONE_SUCCESS", "source": MY_ID}}
-
-if __name__ == "__main__":
-    print(f" 🐝 DRONE ONLINE: {{MY_ID}} ({{MY_IP}})")
-    uvicorn.run(app, host="0.0.0.0", port=8081, log_level="critical")
-""")
-
-    # --- Cell: Archivist & Backup Queen ---
-    elif choice == "3":
-        with open("cell.py", "w", encoding="utf-8") as f:
-            f.write(LICENSE_HEADER + f"""
-import fastapi, uvicorn, datetime, httpx, asyncio, threading
-
-app = fastapi.FastAPI()
-CONFIG = {json.dumps(config)}
-IS_BACKUP_ACTIVE = False
-WORKERS = []
-
-@app.post("/write")
-async def write(req: fastapi.Request):
-    data = await req.json()
-    log = f"[{{datetime.datetime.now()}}] {{data}}\\n"
-    with open("hive_archive.log", "a", encoding="utf-8") as f: f.write(log)
-    return {{"status": "recorded"}}
-
-@app.post("/register") # Backup Registry
-async def register(req: fastapi.Request):
-    data = await req.json()
-    if not any(d['id'] == data['id'] for d in WORKERS): WORKERS.append(data)
-    return {{"status": "ACCEPTED_BY_BACKUP"}}
-
-async def monitor_queen():
-    global IS_BACKUP_ACTIVE
-    async with httpx.AsyncClient() as client:
-        while True:
-            try:
-                await client.get(f"http://{{CONFIG['queen_ip']}}:8000/health", timeout=1.0)
-                IS_BACKUP_ACTIVE = False
-            except:
-                if not IS_BACKUP_ACTIVE:
-                    print("🚨 Queen Offline. Cell assuming Backup Command...")
-                    IS_BACKUP_ACTIVE = True
-            await asyncio.sleep(2)
-
-if __name__ == "__main__":
-    threading.Thread(target=lambda: asyncio.run(monitor_queen()), daemon=True).start()
-    print("🏛️ HIVE ARCHIVIST & BACKUP COMMANDER ONLINE")
-    uvicorn.run(app, host="0.0.0.0", port=9000)
-""")
-
+def deploy_drone():
     print("\n" + "═"*60)
-    print(" 🎉 HIVE v1.8 DEPLOYMENT READY. GLORY TO THE SWARM.")
+    print(" 🐝 INITIATING DRONE PROTOCOL (WORKER NODE)")
     print("═"*60)
+    
+    target_file = "drone.py"
+    config_file = "config.json"
+    
+    # 1. Generate Code
+    with open(target_file, "w", encoding="utf-8") as f:
+        f.write(CODE_DRONE)
+    print(f" [✅] FILE GENERATED: {target_file}")
+
+    # 2. Configuration Wizard
+    print("\n [📡] NETWORK CONFIGURATION WIZARD")
+    local_ip = get_local_ip()
+    print(f"      Current Host IP: {local_ip}")
+    
+    queen_ip = input(f"      Enter QUEEN IP Address (Default {local_ip}): ").strip()
+    if not queen_ip: queen_ip = local_ip
+    
+    drone_id = f"DRONE_{socket.gethostname()}_{int(time.time())}"
+    
+    config_data = {
+        "queen_ip": queen_ip,
+        "queen_port": 9999,
+        "drone_id": drone_id,
+        "vendor": "KapitalSP",
+        "deployment_date": str(time.strftime("%Y-%m-%d"))
+    }
+    
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config_data, f, indent=4)
+        
+    print(f" [✅] CONFIGURATION SAVED: {config_file}")
+    print(f"      -> Target Queen: {queen_ip}:9999")
+    print(f" [ℹ️] INSTRUCTION: Run 'python drone.py' to engage.")
 
 # ==============================================================================
-# 🏁 ENGINE IGNITION
+# 🏁 MAIN INTERFACE
 # ==============================================================================
+
+def main():
+    clear_screen()
+    print("\n" + "═"*60)
+    print(" 🏭 HIVE FABRICATOR v2.2 // KAPITAL SP EDITION")
+    print(" 🛡️  LICENSED UNDER APACHE 2.0")
+    print("═"*60)
+    print(" [SYSTEM STATUS] READY")
+    print(" [VENDOR]        KapitalSP")
+    print(" [LOCAL IP]      " + get_local_ip())
+    print("\n SELECT DEPLOYMENT VECTOR:")
+    print("  [1] QUEEN CLASS (Command & Control Node)")
+    print("  [2] DRONE CLASS (Distributed Worker Node)")
+    print("  [0] TERMINATE SESSION")
+    
+    choice = input("\n > AWAITING INPUT: ").strip()
+    
+    if choice == '1':
+        deploy_queen()
+    elif choice == '2':
+        deploy_drone()
+    elif choice == '0':
+        print("\n [👋] SYSTEM SHUTDOWN.")
+        sys.exit()
+    else:
+        print("\n [❌] INVALID INPUT.")
+        time.sleep(1)
+        main()
+
 if __name__ == "__main__":
-    setup()
+    main()
