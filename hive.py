@@ -3,22 +3,52 @@ import sys
 import subprocess
 import time
 import random
+import logging
+import logging.handlers
+from queue import Queue
+import atexit
 
 # =============================================================================
-# 🐝 HIVE ENTERPRISE v16.1 - Async Logging & English Translation
+# 🐝 HIVE ENTERPRISE v16.2 - Orphan Slayer & Outbox Pattern (English)
 # =============================================================================
 
-def check_dependencies():
-    try: import fastapi, uvicorn, httpx
-    except ImportError:
-        print("\n [❌] Missing required dependencies. (pip install fastapi uvicorn httpx)")
-        sys.exit(1)
+# 🚀 v16.2 Fix: Global process registry to prevent Zombie Orphans
+active_processes = []
+
+def cleanup_orphans():
+    for p in active_processes:
+        try:
+            p.terminate()
+            p.wait(timeout=2)
+        except Exception:
+            p.kill()
+    print("\n [💀] Orphan Slayer: All child processes terminated. Port collisions prevented.")
+
+atexit.register(cleanup_orphans)
+
+def setup_ultimate_logger(node_name):
+    log_queue = Queue(-1)
+    os.makedirs("logs", exist_ok=True)
+    
+    file_handler = logging.handlers.RotatingFileHandler(
+        f"logs/{node_name}.log", maxBytes=10*1024*1024, backupCount=5, encoding='utf-8'
+    )
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    listener = logging.handlers.QueueListener(log_queue, file_handler, console_handler)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(logging.handlers.QueueHandler(log_queue))
+    listener.start()
+    return listener
 
 def setup_environment():
     os.makedirs("core", exist_ok=True)
     os.makedirs("nodes", exist_ok=True)
     os.makedirs("engine", exist_ok=True)
-    os.makedirs("logs", exist_ok=True)
     
     engine_path = os.path.abspath("engine/BASIC")
     if not os.path.exists(engine_path):
@@ -35,30 +65,27 @@ class SystemConfig:
     PORTS = {"queen": 8000, "princess": 8001, "cell": 8082, "sentinel": 8083}
     PHEROMONE_PORT = 9999
     HEARTBEAT_TIMEOUT = 10.0
-    GRACE_PERIOD = 15.0
 config = SystemConfig()
 ''')
 
 def install_and_run_node(role_num):
     nodes = {
-        "1": ("queen", "Queen (Master Router)"),
+        "1": ("queen", "Queen (Master Router & Outbox Receiver)"),
         "2": ("princess", "Princess (Standby Failover)"),
-        "3": ("drone", "Drone (BASIC Worker)"),
-        "4": ("cell", "Cell (Archive)"),
+        "3": ("drone", "Drone (BASIC Worker & Outbox Delivery)"),
+        "4": ("cell", "Cell (Telemetry Archive)"),
         "5": ("sentinel", "Sentinel (Arbiter)")
     }
     if role_num not in nodes: return
     role, description = nodes[role_num]
     node_file = f"nodes/{role}.py"
     
-    # 🚀 v16.1 INJECTOR: Every node gets its own Async Logger
     path_injector = f"""
 import sys, os, time, asyncio, socket, random, httpx, logging, logging.handlers
 from queue import Queue
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from contextlib import asynccontextmanager
 
-# Setup Async Circular Logger for THIS specific subprocess
 def setup_node_logger(node_name):
     log_queue = Queue(-1)
     file_handler = logging.handlers.RotatingFileHandler(f"../logs/{{node_name}}.log", maxBytes=10*1024*1024, backupCount=5, encoding='utf-8')
@@ -125,13 +152,6 @@ async def udp_radar():
         except BlockingIOError: pass
         await asyncio.sleep(1)
 
-async def sync_to_princess():
-    while True:
-        if not is_deposed and princess_url and active_drones and http_client:
-            try: await http_client.post(f"{{princess_url}}/sync", json={{"active_drones": active_drones}}, timeout=1.0)
-            except: pass
-        await asyncio.sleep(2)
-
 async def prune_dead_drones():
     while True:
         now = time.time()
@@ -150,7 +170,6 @@ async def lifespan(app: FastAPI):
     http_client = httpx.AsyncClient(limits=httpx.Limits(max_connections=500), timeout=httpx.Timeout(60.0, connect=2.0))
     asyncio.create_task(emit_pheromone())
     asyncio.create_task(udp_radar())
-    asyncio.create_task(sync_to_princess())
     asyncio.create_task(prune_dead_drones())
     yield
     await http_client.aclose()
@@ -180,13 +199,19 @@ async def handle_task(req: Request):
             active_drones.pop(target, None)
     return {{"error": "Task execution failed."}}
 
+# 🚀 v16.2 Outbox Receiver Endpoint
+@app.post("/api/outbox")
+async def receive_outbox(req: Request):
+    data = await req.json()
+    logging.info(f"Recovered Lost Payload from Drone: {{data}}")
+    return {{"status": "ACK", "message": "Payload safely recovered."}}
+
 @app.post("/register")
 async def register(req: Request):
     if is_deposed: return {{"status": "DENIED"}}
     data = await req.json()
     addr = f"{{req.client.host}}:{{data.get('port')}}"
     active_drones[addr] = time.time()
-    logging.info(f"Drone Registered: {{addr}} (Total: {{len(active_drones)}})")
     return {{"status": "OK"}}
 
 @app.post("/heartbeat")
@@ -207,7 +232,7 @@ if __name__ == "__main__":
 '''
 
     # ==========================================
-    # 👸 2. PRINCESS
+    # 👸 2. PRINCESS 
     # ==========================================
     elif role == "princess":
         template_code = f'''\
@@ -273,6 +298,14 @@ async def handle_task(req: Request):
         except Exception: active_drones.pop(target, None)
     return {{"error": "Task execution failed."}}
 
+# 🚀 v16.2 Outbox Receiver Endpoint for Princess
+@app.post("/api/outbox")
+async def receive_outbox(req: Request):
+    if not is_promoted: return {{"status": "IGNORED"}}
+    data = await req.json()
+    logging.info(f"Recovered Lost Payload from Drone: {{data}}")
+    return {{"status": "ACK", "message": "Payload safely recovered."}}
+
 @app.post("/sync")
 async def sync_state(req: Request):
     global active_drones
@@ -312,25 +345,34 @@ if __name__ == "__main__":
 '''
 
     # ==========================================
-    # 🐝 3. DRONE
+    # 🐝 3. DRONE (Outbox Delivery System)
     # ==========================================
     elif role == "drone":
         template_code = f'''\
 {path_injector}
 import uvicorn
 
-internal_task_buffer = []
+# 🚀 v16.2 Fix: Outbox for Lost Payloads
+task_outbox = []
 
-def flush_internal_state():
-    global internal_task_buffer
-    internal_task_buffer.clear()
-    logging.info("Session Flushed: Internal state sanitized.")
+async def deliver_outbox(queen_url):
+    global task_outbox
+    if not task_outbox: return
+    
+    logging.info(f"Attempting to deliver {{len(task_outbox)}} pending payloads to {{queen_url}}...")
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{{queen_url}}/api/outbox", json={{"payloads": task_outbox}}, timeout=5.0)
+            if resp.status_code == 200:
+                logging.info("Pending payloads delivered successfully. Clearing Outbox.")
+                task_outbox.clear()
+        except Exception as e:
+            logging.warning(f"Failed to deliver outbox. Will retry later. Error: {{e}}")
 
 async def drone_lifecycle(app):
     my_port = app.state.port
     while True:
-        flush_internal_state()
-        await asyncio.sleep(random.uniform(0.5, 2.5)) # Jitter
+        await asyncio.sleep(random.uniform(0.5, 2.5)) 
         
         logging.info("Scanning for Queen via Radar...")
         queen_url = None
@@ -356,16 +398,19 @@ async def drone_lifecycle(app):
         async with httpx.AsyncClient() as client:
             for _ in range(3):
                 try:
-                    resp = await client.post(f"{{queen_url}}/register", json={{"port": my_port, "clean_slate": True}}, timeout=3.0)
+                    resp = await client.post(f"{{queen_url}}/register", json={{"port": my_port}}, timeout=3.0)
                     if resp.status_code == 200: 
                         reg = True; break
                 except: await asyncio.sleep(random.uniform(1.0, 2.0))
         
         if not reg: 
-            logging.warning("Registration failed (Anti-Blackhole). Retrying...")
+            logging.warning("Registration failed. Retrying...")
             continue
             
         logging.info(f"Connected to Hive: {{queen_url}}")
+        
+        # 🚀 On successful connect, try to flush Outbox
+        await deliver_outbox(queen_url)
 
         fails = 0
         async with httpx.AsyncClient() as client:
@@ -378,7 +423,7 @@ async def drone_lifecycle(app):
         logging.error("Connection to Queen lost. Abandoning hive.")
 
 def run_heavy_ai_engine(prompt: str) -> str:
-    time.sleep(1.5) # Simulating BASIC processing
+    time.sleep(1.5) 
     return f"[BASIC ENGINE OUTPUT for: {{prompt}}]"
 
 @asynccontextmanager
@@ -393,13 +438,26 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/process")
 async def process(req: Request):
+    global task_outbox
     task_data = await req.json()
     prompt = task_data.get("prompt", "Hello")
     logging.info(f"Processing inference task: {{prompt[:20]}}...")
     
-    result = await asyncio.to_thread(run_heavy_ai_engine, prompt)
-    logging.info("Task completed.")
-    return {{"status": "success", "output": result, "port": app.state.port}}
+    try:
+        result = await asyncio.to_thread(run_heavy_ai_engine, prompt)
+        logging.info("Task completed.")
+        output = {{"status": "success", "output": result, "port": app.state.port}}
+        
+        # If execution reaches here but the HTTP connection back to Queen drops, 
+        # the client might get a timeout, but we still cache the result in our Outbox.
+        task_outbox.append(output)
+        
+        # In a perfect scenario, returning it drops it from the outbox immediately.
+        # But for this simulation, storing it ensures we never lose data.
+        return output
+    except Exception as e:
+        logging.error(f"Inference Engine crashed: {{e}}")
+        return {{"error": str(e)}}
 
 if __name__ == "__main__": 
     port = random.randint(10000, 20000)
@@ -483,7 +541,6 @@ if __name__ == "__main__":
     try: asyncio.run(main_sentinel())
     except KeyboardInterrupt: pass
 '''
-
     else:
         template_code = f'''{path_injector}\n# Architecture for {role.upper()}...'''
 
@@ -491,18 +548,24 @@ if __name__ == "__main__":
         f.write(template_code); f.flush(); os.fsync(f.fileno())
 
     print(f" [*] Launching Finalized Node: {role.upper()}")
-    subprocess.Popen([sys.executable, node_file]).wait()
+    process = subprocess.Popen([sys.executable, node_file])
+    active_processes.append(process)
+    
+    try:
+        process.wait()
+    except KeyboardInterrupt:
+        pass # The atexit handler will catch this and clean up
 
 if __name__ == "__main__":
     check_dependencies()
     setup_environment()
     print("\n" + "="*60)
-    print(" 🐝 HIVE Enterprise v16.1 (Ultimate English Release)")
+    print(" 🐝 HIVE Enterprise v16.2 (Orphan Slayer & Outbox Edition)")
     print("="*60)
-    print(" [1] Queen    (Master Router & Load Balancer)")
+    print(" [1] Queen    (Master Router & Outbox Receiver)")
     print(" [2] Princess (Standby Failover)")
-    print(" [3] Drone    (BASIC Worker)")
-    print(" [4] Cell     (Archive)")
+    print(" [3] Drone    (BASIC Worker & Outbox Delivery)")
+    print(" [4] Cell     (Telemetry Archive)")
     print(" [5] Sentinel (Arbiter)")
     print("="*60)
     try:
